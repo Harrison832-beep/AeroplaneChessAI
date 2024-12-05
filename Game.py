@@ -1,7 +1,13 @@
-from Agent import AeroplaneChessAgent, RandomAgent
-import random
+from Agent import AeroplaneChessAgent, RandomAgent, ExpectimaxAgent
+import random, os
+from colorama import init as colorama_init
+from colorama import Fore
+from colorama import Style
 
-from GameBoard import Plane, GameBoard
+from GameBoard import Plane, GameBoard, GameState
+from utils import NUM_SQUARES, OPPONENT, AGENT1
+
+colorama_init()
 
 
 class Player:
@@ -13,28 +19,37 @@ class Player:
         self.planes = [Plane(color, i) for i in range(4)]
         self.color = color
 
-
     @staticmethod
     def roll_die():
         return random.randint(1, 6)
 
-    def take_action(self, gameboard: GameBoard) -> (Plane, int):
+    def take_action(self, state: GameState) -> (Plane, int):
         die_v = Player.roll_die()
-        movable_planes = self.get_movable_planes(die_v)
-        plane = None
-        if len(movable_planes) > 0:
-            plane = self.agent.get_action(gameboard, movable_planes, die_v)
-            plane.move(die_v)
-        return plane, die_v
+        a = self.agent.get_action(state, die_v)
+        return a, die_v
 
-    def get_movable_planes(self, die_v: int):
-        planes = []
-        for plane in self.planes:
-            if plane.pos_type == 'Launch':
-                planes.append(plane)
-            elif plane.pos_type == 'Hanger' and die_v == 6:
-                planes.append(plane)
-        return planes
+    def get_movable_planes(self, die_v: int) -> list[int]:
+        """
+        Given die roll, list indices of all planes of a player
+        Movable planes are:
+        * On launch pad
+        * On main track
+        * On final stretch
+        """
+        inx = []
+        for i in range(len(self.planes)):
+            plane = self.planes[i]
+            if plane.is_on_launch() or plane.is_on_main_track() or plane.is_on_final_stretch():
+                inx.append(i)
+            elif plane.is_on_hangar() and die_v == 6:
+                inx.append(i)
+        return inx
+
+    def get_remaining_planes_count(self) -> int:
+        """
+        Check how many planes left to win
+        """
+        return sum([True for plane in self.planes if not plane.is_finished()])
 
     def __repr__(self):
         return self.color
@@ -45,30 +60,41 @@ class Game:
         assert num_players == 2
         # Blue player has Green as opponent, green player is the only player that can catch blue in final stretch
         # Now consider only two players
-        self.players = [Player('B'), Player('G')]
-        self.gameboard = GameBoard([plane for player in self.players for plane in player.planes])
-        self.turn = 0  # Player 1
+
+        if AGENT1 == 'Expectimax':
+            players = [Player('B', agent=ExpectimaxAgent('B')), Player('G')]
+        else:
+            players = [Player('B'), Player('G')]
+
+        turn = 0  # Player 1
         self.is_over = False
+        self.state = GameState(players, turn)
 
     def player_move(self):
-        cur_player = self.players[self.turn]
-        plane_moved, die_v = cur_player.take_action(self.gameboard)
-        # TODO: check plane current position for catching, jumping, etc.
-        print(f"Die: {die_v}")
-        if plane_moved is not None:
-            print(f"{cur_player.color} player moved plane {plane_moved.ind}")
-        if die_v != 6:
-            self.next_player()
+        cur_player = self.state.players[self.state.turn]
+        action, die_v = cur_player.take_action(self.state)
+        print(f"{cur_player.color} player rolled Die: {die_v}")
+        new_state = self.state.generateSuccessor(action, die_v, show_event=True)
+        self.state = new_state
 
-    def next_player(self):
-        self.turn = (self.turn + 1) % len(self.players)
+        if action is not None:
+            print(f"{Fore.RED}Player {cur_player} moved plane {action}{Style.RESET_ALL}")
+        # game over state: a player has all planes with state "Finish"
+        if self.state.is_win(cur_player.color):
+            print(f"{Fore.RED}Player {cur_player} wins the game!{Style.RESET_ALL}")
+            self.is_over = True
+        elif self.state.is_lose(cur_player.color):  # Consider only two players
+            print(f"{Fore.RED}Player {OPPONENT[cur_player.color]} wins the game!{Style.RESET_ALL}")
+            self.is_over = True
+        else:
+            print(f"{cur_player.get_remaining_planes_count()} planes left.")
 
     def show(self):
-        print(self.gameboard)
+        print(self.state.gameboard)
+
 
 
 def start_game():
-
     game = Game(num_players=2)
     game.show()
     while not game.is_over:
