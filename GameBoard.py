@@ -1,6 +1,6 @@
 from copy import deepcopy
 from types import NoneType
-from typing import Self
+from typing_extensions import Self
 
 from colorama import Fore, Style
 

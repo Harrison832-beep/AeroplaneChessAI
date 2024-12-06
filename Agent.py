@@ -2,7 +2,7 @@ import random
 from abc import ABC
 
 from GameBoard import GameBoard, Plane, GameState
-from utils import MAX_DEPTH
+from utils import MAX_DEPTH, DEBUG_EXPECTIMAX
 
 
 class AeroplaneChessAgent:
@@ -60,16 +60,25 @@ class ExpectimaxAgent(AeroplaneChessAgent):
         movable_planes_inx = state.get_movable_planes(die_v)
         if len(movable_planes_inx) > 0:
             v, action = self._max(state, die_v, 1)
-            assert action is not None
+
+            if DEBUG_EXPECTIMAX:
+                try:
+                    v, action = self._max(state, die_v, 1)
+                    # As long as there is plane to move, it's impossible action is None
+                    assert action is not None
+                except Exception:
+                    print("HERE")
+                    v, action = self._max(state, die_v, 1)  # Debug
             return action
         return None
 
     def _max(self, state, die_v, depth):
-        if state.is_win(self.color) or state.is_lose(self.color) or depth > MAX_DEPTH:
+        movable_planes_inx = state.get_movable_planes(die_v)
+        if state.is_win(self.color) or state.is_lose(self.color) or depth > MAX_DEPTH or len(movable_planes_inx) == 0:
             return self.evaluate_state(state), None
         move = None
         v = -float('inf')
-        movable_planes_inx = state.get_movable_planes(die_v)
+
         for a in movable_planes_inx:
             expected_v2 = 0
             new_state = state.generateSuccessor(a, die_v)
@@ -77,8 +86,22 @@ class ExpectimaxAgent(AeroplaneChessAgent):
             for die_v2 in range(1, 7):
                 if die_v == 6:
                     v2, _ = self._max(new_state, die_v2, depth + 1)
+
+                    if DEBUG_EXPECTIMAX:
+                        try:
+                            assert v2 != -float('inf')
+                        except Exception:
+                            print("HERE")
+                            v2, _ = self._max(new_state, die_v2, depth + 1)
                 else:
                     v2, _ = self._min(new_state, die_v2, depth + 1)
+
+                    if DEBUG_EXPECTIMAX:
+                        try:
+                            assert v2 != -float('inf')
+                        except Exception:
+                            print("HERE")
+                            v2, _ = self._min(new_state, die_v2, depth + 1)
                 expected_v2 += v2
             expected_v2 /= 6
             if expected_v2 > v:
@@ -86,11 +109,12 @@ class ExpectimaxAgent(AeroplaneChessAgent):
         return v, move
 
     def _min(self, state, die_v, depth):
-        if state.is_win(self.color) or state.is_lose(self.color) or depth > MAX_DEPTH:
+        movable_planes_inx = state.get_movable_planes(die_v)
+        if state.is_win(self.color) or state.is_lose(self.color) or depth > MAX_DEPTH or len(movable_planes_inx) == 0:
             return self.evaluate_state(state), None
         move = None
         expected_v = 0
-        movable_planes_inx = state.get_movable_planes(die_v)
+
         for a in movable_planes_inx:
             expected_v2 = 0
             new_state = state.generateSuccessor(a, die_v)
@@ -98,11 +122,27 @@ class ExpectimaxAgent(AeroplaneChessAgent):
                 # When die is 6, the next will still be min player
                 if die_v == 6:
                     v2, a2 = self._min(new_state, die_v2, depth + 1)
+
+                    if DEBUG_EXPECTIMAX:
+                        try:
+                            assert v2 != -float('inf')
+                        except Exception:
+                            print("HERE")
+                            v2, a2 = self._min(new_state, die_v2, depth + 1)
                 else:
                     v2, a2 = self._max(new_state, die_v2, depth + 1)
+
+                    if DEBUG_EXPECTIMAX:  # Use for debug mode
+                        try:
+                            assert v2 != -float('inf')
+                        except Exception:
+                            print("HERE")
+                            v2, a2 = self._max(new_state, die_v2, depth + 1)
                 expected_v2 += v2
             expected_v2 /= 6
             expected_v += expected_v2
+        if len(movable_planes_inx) > 0:
+            expected_v /= len(movable_planes_inx)
         return expected_v, move
 
 
@@ -111,7 +151,22 @@ class MCTSAgent(AeroplaneChessAgent):
         super().__init__(color)
 
     def get_action(self, state: GameState, die_v: int):
-        movable_planes = state.get_movable_planes(die_v)
+        movable_planes_inx = state.get_movable_planes(die_v)
+        pass
+
+    def select(self):
+        pass
+
+    def expand(self):
+        pass
+    def simulate(self):
+        pass
+
+    def backpropagte(self):
+        pass
+
+
+    def rollout(self):
         pass
 
 

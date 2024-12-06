@@ -1,5 +1,12 @@
+import collections
+import optparse
+import time
+from sys import argv
+
 from Agent import AeroplaneChessAgent, RandomAgent, ExpectimaxAgent
 import random, os
+from argparse import ArgumentParser
+
 from colorama import init as colorama_init
 from colorama import Fore
 from colorama import Style
@@ -69,6 +76,7 @@ class Game:
         turn = 0  # Player 1
         self.is_over = False
         self.state = GameState(players, turn)
+        self.winner = None
 
     def player_move(self):
         cur_player = self.state.players[self.state.turn]
@@ -83,9 +91,11 @@ class Game:
         if self.state.is_win(cur_player.color):
             print(f"{Fore.RED}Player {cur_player} wins the game!{Style.RESET_ALL}")
             self.is_over = True
+            self.winner = cur_player.color
         elif self.state.is_lose(cur_player.color):  # Consider only two players
             print(f"{Fore.RED}Player {OPPONENT[cur_player.color]} wins the game!{Style.RESET_ALL}")
             self.is_over = True
+            self.winner = OPPONENT[cur_player.color]
         else:
             print(f"{cur_player.get_remaining_planes_count()} planes left.")
 
@@ -94,14 +104,37 @@ class Game:
 
 
 
-def start_game():
-    game = Game(num_players=2)
-    game.show()
-    while not game.is_over:
-        input('Type enter to continue...')
-        game.player_move()
+def start_game(no_graphics):
+    if no_graphics is not None and no_graphics:
+        winner_history = []
+        time_history = []
+        for _ in range(100):
+            game = Game(num_players=2)
+            game.show()
+
+            start = time.time()
+            while not game.is_over:
+                game.player_move()
+            print(f"Game finish time: {time.time() - start}")
+            winner_history.append(game.winner)
+        counter = collections.Counter(winner_history)
+        print("Game finish time:", time_history)
+        print("Winner summary:", counter)
+
+    else:
+        game = Game(num_players=2)
         game.show()
+        while not game.is_over:
+            input('Type enter to continue...')
+            game.player_move()
+            game.show()
 
 
 if __name__ == '__main__':
-    start_game()
+    parser = optparse.OptionParser()
+    parser.add_option('--no-graphics',
+                      dest='noGraphics',
+                      action='store_true',
+                      help='Run game without showing steps.')
+    args = parser.parse_args(argv)
+    start_game(args[0].noGraphics)
