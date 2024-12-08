@@ -91,6 +91,13 @@ class Plane:
     def is_finished(self):
         return self.pos_type == 'Finish'
 
+    def __eq__(self, other: Self):
+        return self.pos_type == other.pos_type and \
+               self.pos == other.pos and \
+               self.ind == other.ind and \
+               self.color == other.color and \
+               self.total_steps == other.total_steps
+
 
 class GameBoard:
     """
@@ -192,6 +199,7 @@ class GameBoard:
 
 class GameState:
     def __init__(self, players, turn: int):
+        self.die_roll = None
         self.players = players
         self.gameboard = GameBoard([plane for player in players for plane in player.planes])
         self.turn = turn
@@ -199,7 +207,7 @@ class GameState:
     def get_movable_planes(self, die_v: int):
         return self.players[self.turn].get_movable_planes(die_v)
 
-    def generateSuccessor(self, action: [NoneType, int], die_v: int, show_event: bool = False) -> Self:
+    def generate_successor(self, action: [NoneType, int], die_v: int, show_event: bool = False) -> Self:
         # Create new state
         succ_state = GameState(deepcopy(self.players), self.turn)
         event_log = ""
@@ -217,8 +225,8 @@ class GameState:
             if caught_plane:
                 event_log += f"{Fore.RED}{cur_player.color} player's plane {plane_moved.ind} caught {OPPONENT[cur_player.color]} " \
                              f"player's plane {inx}!{Style.RESET_ALL}\n"
-            # Handle jump
 
+            # Handle jump
             if plane_moved.is_on_main_track() and \
                     succ_state.gameboard.squares[pos].color == plane_moved.color:  # Jump
                 if succ_state.gameboard.squares[pos].is_jump_point() or \
@@ -300,3 +308,42 @@ class GameState:
             if player.color != color and player.get_remaining_planes_count() == 0:
                 return True
         return False
+
+    '''
+        def get_transition(self, future_state) -> (str, int):
+        """
+        Given future state, return action to get to that state
+        * Should be only one moved plane
+        * But may be no moved plane
+        """
+        count = 0
+        color = ""
+        plane_ind = None
+        for i, player1 in enumerate(self.players):
+            player2 = future_state.players[i]
+            for j, plane1 in enumerate(player1.planes):
+                plane2 = player2.planes[j]
+                # Pos may be the same and pos type may be different for launching
+                if plane1.pos != plane2.pos or plane1.pos_type != plane2.pos_type:
+                    count += 1
+                    color = plane1.color
+                    plane_ind = j
+
+        assert count <= 1
+        return color, plane_ind
+    '''
+
+
+    def get_turn_player(self):
+        return self.players[self.turn]
+
+    def __eq__(self, other: Self):
+        # Equal if plane positions and types are the same
+        if self.turn != other.turn or self.die_roll != other.die_roll:
+            return False
+
+        for i, p1 in enumerate(self.players):
+            p2 = other.players[i]
+            if p1 != p2:
+                return False
+        return True

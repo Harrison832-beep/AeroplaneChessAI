@@ -13,8 +13,9 @@ Max depth = 3 for Expectimax agent
 |**Agent Type**      |**Ave Decision Time (s)**|
 |--------------------|-------------------------|
 | Random Agent       | Instantly               |
-| Expectimax Agent   |                         |
-| Moonte Carlo Agent |                         |
+| Expectimax Agent   | 0.07098                 |
+| Monte Carlo Agent  |                         |
+| Q-Learning         |                         |
 
 
 

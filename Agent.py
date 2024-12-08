@@ -1,8 +1,10 @@
 import random
-from abc import ABC
+from math import sqrt, log
+from types import NoneType
 
-from GameBoard import GameBoard, Plane, GameState
-from utils import MAX_DEPTH, DEBUG_EXPECTIMAX
+from GameBoard import GameState
+from utils import MAX_DEPTH, DEBUG_EXPECTIMAX, roll_die
+from typing_extensions import Self
 
 
 class AeroplaneChessAgent:
@@ -30,7 +32,7 @@ class AeroplaneChessAgent:
                 elif plane.is_on_hangar():
                     score -= 50
                 if plane.is_on_final_stretch():
-                    score += 50*0.05 + (6 - plane.pos)*0.05  # Distance to finish
+                    score += 50 * 0.05 + (6 - plane.pos) * 0.05  # Distance to finish
                 else:
                     score += plane.total_steps * 0.05
             if player.color == self.color:  # Agent color
@@ -39,6 +41,9 @@ class AeroplaneChessAgent:
                 score -= player_score
 
         return score
+
+    def __repr__(self):
+        return "Abstract agent"
 
 
 class RandomAgent(AeroplaneChessAgent):
@@ -50,6 +55,9 @@ class RandomAgent(AeroplaneChessAgent):
         if len(movable_planes_inx) > 0:
             ind = random.randint(0, len(movable_planes_inx) - 1)
             return movable_planes_inx[ind]
+
+    def __repr__(self):
+        return f"Random agent ({self.color})"
 
 
 class ExpectimaxAgent(AeroplaneChessAgent):
@@ -81,7 +89,7 @@ class ExpectimaxAgent(AeroplaneChessAgent):
 
         for a in movable_planes_inx:
             expected_v2 = 0
-            new_state = state.generateSuccessor(a, die_v)
+            new_state = state.generate_successor(a, die_v)
             # When die is 6, the next will still be max player
             for die_v2 in range(1, 7):
                 if die_v == 6:
@@ -117,7 +125,7 @@ class ExpectimaxAgent(AeroplaneChessAgent):
 
         for a in movable_planes_inx:
             expected_v2 = 0
-            new_state = state.generateSuccessor(a, die_v)
+            new_state = state.generate_successor(a, die_v)
             for die_v2 in range(1, 7):
                 # When die is 6, the next will still be min player
                 if die_v == 6:
@@ -145,29 +153,153 @@ class ExpectimaxAgent(AeroplaneChessAgent):
             expected_v /= len(movable_planes_inx)
         return expected_v, move
 
+    def __repr__(self):
+        return f"Expectimax agent ({self.color})"
+
+
+class MCTSNode:
+    def __init__(self, state: GameState, parent: [Self, NoneType], action: int = None):
+        self.state = state
+        self.n = 1
+        self.u = 0
+        self.action = action  # Action taken from parent state to this state
+        self.parent = parent
+        self.children = []
+
+    def fully_expanded(self):
+        """
+        A node is fully expanded if:
+        * It has multiple movable planes, then # children = movable planes
+        * It doesn't have any movable plane, then should have one child
+        """
+        movable_plane_inx = self.state.get_turn_player().get_movable_planes(self.state.die_roll)
+        if len(movable_plane_inx) > 0:
+            return len(self.children) == len(movable_plane_inx)
+        else:
+            return len(self.children) == 1
+
 
 class MCTSAgent(AeroplaneChessAgent):
     def __init__(self, color: str):
         super().__init__(color)
+        self.root = None
 
     def get_action(self, state: GameState, die_v: int):
+        """
+        Start new root for each state or search?
+        """
         movable_planes_inx = state.get_movable_planes(die_v)
-        pass
 
-    def select(self):
-        pass
+        if len(movable_planes_inx) > 0:
+            # node = self.search_node(state)
+            '''
+            if node is None:
+                self.root = MCTSNode(state, parent=None)
+            else:
+                self.root = node
+            '''
+            self.root = MCTSNode(state, parent=None)
 
-    def expand(self):
-        pass
-    def simulate(self):
-        pass
+            for i in range(10):
+                print("Iteration:", i)
+                leaf = self.select()
+                if leaf.state.is_win(self.color) or leaf.state.is_lose(self.color):
+                    break
 
-    def backpropagte(self):
-        pass
+                child = self.expand(leaf)
 
+                result = self.simulate(child)
+                self.backpropagate(result, child)
 
-    def rollout(self):
-        pass
+            best_child: MCTSNode = max(self.root.children, key=lambda x: x.u)
+            action = best_child.action
+            assert action is not None
+            return action
+        return None
 
+    '''
+        def search_node(self, state: GameState):
+        if self.root is None:
+            return None
+        s = [self.root]
+        while len(s) > 0:
+            node = s.pop()
 
+            if node.state == state:
+                return node
+            s += node.children
+    '''
 
+    def select(self) -> Self:
+        """
+        Repetitively select node using selection policy until leaf is reached
+        """
+        node = self.root
+        node.n += 1
+        while node.fully_expanded() and len(node.children) > 0:
+            node = max(node.children, key=lambda x: self.UCB1(x))
+            node.n += 1
+        return node
+
+    @staticmethod
+    def expand(leaf: MCTSNode) -> MCTSNode:
+        """
+        Generate random successor state as new child
+        """
+        # If fully expanded, the leaf should not be chosen, should be its children instead
+        assert not leaf.fully_expanded()
+
+        state = leaf.state
+        player = state.get_turn_player()  # Player of current turn
+        die_roll = state.die_roll
+        movable_plane_inx = player.get_movable_planes(die_roll)
+        actions_taken = set([child.action for child in leaf.children])
+
+        diff = list(set(movable_plane_inx) - actions_taken)
+
+        a = None
+        if len(diff) > 0:
+            a = random.choice(diff)
+        assert not len(
+            movable_plane_inx) > 0 or a is not None  # if has movable planes, then must be an available action
+        new_state = state.generate_successor(a, die_roll)
+        roll_die(new_state)
+        child = MCTSNode(new_state, leaf, action=a)
+        leaf.children.append(child)
+        return child
+
+    def simulate(self, node: MCTSNode) -> float:
+        state = node.state
+        for _ in range(1000):
+            if state.is_win(self.color) or state.is_lose(self.color):
+                break
+
+            player = state.get_turn_player()  # Player of current turn
+            if state.die_roll is None:
+                die_roll = roll_die(node.state)
+            else:
+                die_roll = state.die_roll
+            movable_plane_inx = player.get_movable_planes(die_roll)
+
+            if len(movable_plane_inx) > 0:
+                new_state = state.generate_successor(random.choice(movable_plane_inx), die_roll)
+            else:
+                new_state = state.generate_successor(None, die_roll)
+            state = new_state
+        return self.evaluate_state(state)
+
+    @staticmethod
+    def backpropagate(result, child):
+        node = child
+        node.u += result
+        while node.parent is not None:
+            node = node.parent
+            node.u += result
+
+    def UCB1(self, node: MCTSNode):
+        # Selection policy
+        C = 2 ** .5  # Recommended in textbook
+        return node.u / node.n + C * sqrt(log(node.parent.n) / node.n)
+
+    def __repr__(self):
+        return f"MCTS agent ({self.color})"

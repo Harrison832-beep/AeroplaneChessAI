@@ -2,8 +2,9 @@ import collections
 import optparse
 import time
 from sys import argv
+from typing_extensions import Self
 
-from Agent import AeroplaneChessAgent, RandomAgent, ExpectimaxAgent
+from Agent import AeroplaneChessAgent, RandomAgent, ExpectimaxAgent, MCTSAgent
 import random, os
 from argparse import ArgumentParser
 
@@ -12,7 +13,7 @@ from colorama import Fore
 from colorama import Style
 
 from GameBoard import Plane, GameBoard, GameState
-from utils import NUM_SQUARES, OPPONENT, AGENT1
+from utils import NUM_SQUARES, OPPONENT, AGENT1, roll_die
 
 colorama_init()
 
@@ -25,14 +26,14 @@ class Player:
             self.agent = agent  # TODO: add agent
         self.planes = [Plane(color, i) for i in range(4)]
         self.color = color
-
-    @staticmethod
-    def roll_die():
-        return random.randint(1, 6)
+        self.decision_time_record = []
 
     def take_action(self, state: GameState) -> (Plane, int):
-        die_v = Player.roll_die()
+        die_v = roll_die(state)
+
+        start = time.time()
         a = self.agent.get_action(state, die_v)
+        self.decision_time_record.append(time.time() - start)
         return a, die_v
 
     def get_movable_planes(self, die_v: int) -> list[int]:
@@ -58,6 +59,17 @@ class Player:
         """
         return sum([True for plane in self.planes if not plane.is_finished()])
 
+    def __eq__(self, other: Self):
+        if self.color != other.color:
+            return False
+
+        for i, plane1 in enumerate(self.planes):
+            plane2 = other.planes[i]
+            if plane1 != plane2:
+                return False
+        return True
+
+
     def __repr__(self):
         return self.color
 
@@ -70,6 +82,8 @@ class Game:
 
         if AGENT1 == 'Expectimax':
             players = [Player('B', agent=ExpectimaxAgent('B')), Player('G')]
+        elif AGENT1 == 'MCTS':
+            players = [Player('B', agent=MCTSAgent('B')), Player('G')]
         else:
             players = [Player('B'), Player('G')]
 
@@ -82,8 +96,8 @@ class Game:
         cur_player = self.state.players[self.state.turn]
         action, die_v = cur_player.take_action(self.state)
         print(f"{cur_player.color} player rolled Die: {die_v}")
-        new_state = self.state.generateSuccessor(action, die_v, show_event=True)
-        self.state = new_state
+
+        self.state = self.state.generate_successor(action, die_v, show_event=True)
 
         if action is not None:
             print(f"{Fore.RED}Player {cur_player} moved plane {action}{Style.RESET_ALL}")
@@ -99,9 +113,12 @@ class Game:
         else:
             print(f"{cur_player.get_remaining_planes_count()} planes left.")
 
+        if self.is_over:
+            for player in self.state.players:
+                print(f"Ave. decision time for agent {player.agent}: {sum(player.decision_time_record)/len(player.decision_time_record)}")
+
     def show(self):
         print(self.state.gameboard)
-
 
 
 def start_game(no_graphics):
