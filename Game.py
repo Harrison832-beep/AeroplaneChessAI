@@ -1,10 +1,11 @@
 import collections
 import optparse
 import time
+from copy import deepcopy
 from sys import argv
 from typing_extensions import Self
 
-from Agent import AeroplaneChessAgent, RandomAgent, ExpectimaxAgent, MCTSAgent
+from Agent import AeroplaneChessAgent, RandomAgent, ExpectimaxAgent, MCTSAgent, RLAgent
 import random, os
 from argparse import ArgumentParser
 
@@ -13,7 +14,7 @@ from colorama import Fore
 from colorama import Style
 
 from GameBoard import Plane, GameBoard, GameState
-from utils import NUM_SQUARES, OPPONENT, AGENT1, roll_die
+from utils import NUM_SQUARES, OPPONENT, AGENT1, roll_die, CONFIG
 
 colorama_init()
 
@@ -23,7 +24,7 @@ class Player:
         if agent is None:
             self.agent = RandomAgent(color)
         else:
-            self.agent = agent  # TODO: add agent
+            self.agent = agent
         self.planes = [Plane(color, i) for i in range(4)]
         self.color = color
         self.decision_time_record = []
@@ -69,9 +70,17 @@ class Player:
                 return False
         return True
 
-
     def __repr__(self):
         return self.color
+
+    def __hash__(self):
+        return hash(tuple([plane for plane in self.planes]))
+
+    def __deepcopy__(self, memodict={}):
+        copy_self = Player(self.color, self.agent)
+        copy_self.planes = deepcopy(self.planes, memodict)
+        copy_self.decision_time_record = deepcopy(self.decision_time_record, memodict)
+        return copy_self
 
 
 class Game:
@@ -84,6 +93,8 @@ class Game:
             players = [Player('B', agent=ExpectimaxAgent('B')), Player('G')]
         elif AGENT1 == 'MCTS':
             players = [Player('B', agent=MCTSAgent('B')), Player('G')]
+        elif AGENT1 == 'RL':
+            players = [Player('B', agent=RLAgent('B')), Player('G')]
         else:
             players = [Player('B'), Player('G')]
 
@@ -91,16 +102,19 @@ class Game:
         self.is_over = False
         self.state = GameState(players, turn)
         self.winner = None
+        self.decision_time_sum = {}
 
     def player_move(self):
         cur_player = self.state.players[self.state.turn]
         action, die_v = cur_player.take_action(self.state)
-        print(f"{cur_player.color} player rolled Die: {die_v}")
 
-        self.state = self.state.generate_successor(action, die_v, show_event=True)
+        event_log = ""
+        event_log += f"{cur_player.color} player rolled Die: {die_v}\n"
+
+        self.state = self.state.generate_successor(action, die_v, show_event=CONFIG['display'])
 
         if action is not None:
-            print(f"{Fore.RED}Player {cur_player} moved plane {action}{Style.RESET_ALL}")
+            event_log += f"{Fore.RED}Player {cur_player} moved plane {action}{Style.RESET_ALL}\n"
         # game over state: a player has all planes with state "Finish"
         if self.state.is_win(cur_player.color):
             print(f"{Fore.RED}Player {cur_player} wins the game!{Style.RESET_ALL}")
@@ -111,32 +125,47 @@ class Game:
             self.is_over = True
             self.winner = OPPONENT[cur_player.color]
         else:
-            print(f"{cur_player.get_remaining_planes_count()} planes left.")
+            event_log += f"{cur_player.get_remaining_planes_count()} planes left.\n"
+
+        if CONFIG['display']:
+            print(event_log)
 
         if self.is_over:
             for player in self.state.players:
-                print(f"Ave. decision time for agent {player.agent}: {sum(player.decision_time_record)/len(player.decision_time_record)}")
+                self.decision_time_sum[str(player.agent)] = sum(player.decision_time_record)
 
     def show(self):
         print(self.state.gameboard)
 
 
-def start_game(no_graphics):
-    if no_graphics is not None and no_graphics:
+def start_game():
+    if CONFIG['no-graphics']:
         winner_history = []
-        time_history = []
-        for _ in range(100):
-            game = Game(num_players=2)
-            game.show()
+        decision_time_history = {}  # Store total decision time for all games
 
+        if AGENT1 == 'RL':
+            for i in range(1000):
+                print(f"Playing {i+1}th game (Training)...")
+                game = Game(num_players=2)
+                while not game.is_over:
+                    game.player_move()
+
+        for i in range(100):
+            print(f"Playing {i+1}th game...")
+            game = Game(num_players=2)
             start = time.time()
             while not game.is_over:
                 game.player_move()
             print(f"Game finish time: {time.time() - start}")
             winner_history.append(game.winner)
+            for k, v in game.decision_time_sum.items():
+                decision_time_history[k] = decision_time_history.get(k, []) + [v]
+
+        for k, v in decision_time_history.items():
+            decision_time_history[k] = sum(v) / len(v)
         counter = collections.Counter(winner_history)
-        print("Game finish time:", time_history)
         print("Winner summary:", counter)
+        print("Decision time average:", decision_time_history)
 
     else:
         game = Game(num_players=2)
@@ -148,10 +177,4 @@ def start_game(no_graphics):
 
 
 if __name__ == '__main__':
-    parser = optparse.OptionParser()
-    parser.add_option('--no-graphics',
-                      dest='noGraphics',
-                      action='store_true',
-                      help='Run game without showing steps.')
-    args = parser.parse_args(argv)
-    start_game(args[0].noGraphics)
+    start_game()

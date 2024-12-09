@@ -191,17 +191,10 @@ class MCTSAgent(AeroplaneChessAgent):
         movable_planes_inx = state.get_movable_planes(die_v)
 
         if len(movable_planes_inx) > 0:
-            # node = self.search_node(state)
-            '''
-            if node is None:
-                self.root = MCTSNode(state, parent=None)
-            else:
-                self.root = node
-            '''
             self.root = MCTSNode(state, parent=None)
 
-            for i in range(10):
-                print("Iteration:", i)
+            for i in range(200):
+                # print("Iteration:", i)
                 leaf = self.select()
                 if leaf.state.is_win(self.color) or leaf.state.is_lose(self.color):
                     break
@@ -216,19 +209,6 @@ class MCTSAgent(AeroplaneChessAgent):
             assert action is not None
             return action
         return None
-
-    '''
-        def search_node(self, state: GameState):
-        if self.root is None:
-            return None
-        s = [self.root]
-        while len(s) > 0:
-            node = s.pop()
-
-            if node.state == state:
-                return node
-            s += node.children
-    '''
 
     def select(self) -> Self:
         """
@@ -270,7 +250,7 @@ class MCTSAgent(AeroplaneChessAgent):
 
     def simulate(self, node: MCTSNode) -> float:
         state = node.state
-        for _ in range(1000):
+        for _ in range(10):
             if state.is_win(self.color) or state.is_lose(self.color):
                 break
 
@@ -303,3 +283,41 @@ class MCTSAgent(AeroplaneChessAgent):
 
     def __repr__(self):
         return f"MCTS agent ({self.color})"
+
+
+Q = {}
+
+
+class RLAgent(AeroplaneChessAgent):
+    def __init__(self, color: str):
+        super().__init__(color)
+        self.alpha = 1.0
+        self.gamma = 0.9
+        self.epsilon = 0.2
+        self.prev_state = None
+        self.prev_action = None
+
+    def get_action(self, state: GameState, die_v: int):
+        movable_planes_inx = state.get_movable_planes(die_v)
+
+        action = None
+        if len(movable_planes_inx) > 0:
+            reward = self.evaluate_state(state)
+
+            if random.uniform(0, 1) < self.epsilon or state not in Q:
+                action = random.choice(movable_planes_inx)
+                Q[state] = {a: 0 for a in movable_planes_inx}
+            else:
+                action = max(Q[state], key=lambda act: Q[state][act])
+
+            best_q = Q[state][action]
+            if self.prev_state is not None:
+                Q[self.prev_state][self.prev_action] += self.alpha * (reward + self.gamma * best_q - Q[state][action])
+
+            self.prev_state = state
+            self.prev_action = action
+
+        return action
+
+    def __repr__(self):
+        return f"RL agent ({self.color})"

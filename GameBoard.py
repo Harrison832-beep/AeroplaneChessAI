@@ -98,6 +98,9 @@ class Plane:
                self.color == other.color and \
                self.total_steps == other.total_steps
 
+    def __hash__(self):
+        return hash((self.color, self.pos, self.pos_type))
+
 
 class GameBoard:
     """
@@ -309,33 +312,11 @@ class GameState:
                 return True
         return False
 
-    '''
-        def get_transition(self, future_state) -> (str, int):
-        """
-        Given future state, return action to get to that state
-        * Should be only one moved plane
-        * But may be no moved plane
-        """
-        count = 0
-        color = ""
-        plane_ind = None
-        for i, player1 in enumerate(self.players):
-            player2 = future_state.players[i]
-            for j, plane1 in enumerate(player1.planes):
-                plane2 = player2.planes[j]
-                # Pos may be the same and pos type may be different for launching
-                if plane1.pos != plane2.pos or plane1.pos_type != plane2.pos_type:
-                    count += 1
-                    color = plane1.color
-                    plane_ind = j
-
-        assert count <= 1
-        return color, plane_ind
-    '''
-
-
     def get_turn_player(self):
         return self.players[self.turn]
+
+    def __hash__(self):
+        return hash(tuple([self.turn, self.die_roll] + [player for player in self.players]))
 
     def __eq__(self, other: Self):
         # Equal if plane positions and types are the same
