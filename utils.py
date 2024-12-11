@@ -10,15 +10,15 @@ ENTRY = {'B': 0, 'G': 26}
 FS = {'B': 49, 'G': 23}
 JUMP_POINT = {'R': 4, 'B': 17, 'Y': 30, 'G': 43}
 OPPONENT = {'R': 'Y', 'B': 'G', 'G': 'B', 'Y': 'R'}
-MAX_DEPTH = 3
+MAX_DEPTH = 2
 AGENT1 = "Expectimax"
 # AGENT1 = "MCTS"
 # AGENT1 = "RL"
 # AGENT1 = None
 DEBUG_EXPECTIMAX = False
 CONFIG = {
-    'no-graphics': True,
-    'display': False,
+    'no-graphics': False,
+    'display': True,
 }
 
 
