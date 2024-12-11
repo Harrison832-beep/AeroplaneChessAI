@@ -17,8 +17,8 @@ AGENT1 = "Expectimax"
 # AGENT1 = None
 DEBUG_EXPECTIMAX = False
 CONFIG = {
-    'no-graphics': False,
-    'display': True,
+    'no-graphics': True,
+    'display': False,
 }
 
 

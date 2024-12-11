@@ -11,7 +11,7 @@ This project implements a text-based Aeroplane chess game and experiments severa
 * `GameBoard.py`: contains implementation for plane, gameboard, game state.
 * `utils.py`: configurations for which agent to use and whether show game state on each player move.
   * Change `AGENT1` to play game with different agents.
-
+  * Change `CONFIG` to display or hide the game board and events.
 
 ```
 pip install -r requirements.txt
